@@ -25,13 +25,11 @@
 
 #include <stdint.h>
 
-#include "nrf_drv_systick.h"
-#include "nrf.h"
-#include "nrf_drv_timer.h"
-#include "nrfx_config.h"
-#include "boards.h"
+#include "stm32f0xx.h"
+#include "stm32f0_discovery.h"
+#include "bmlite_hal.h"
 
-const nrf_drv_timer_t TIMER_LED = NRF_DRV_TIMER_INSTANCE(0);
+
 
 static volatile uint32_t systick;
 volatile uint32_t button_pressed_time = 0;
@@ -46,25 +44,25 @@ static void check_buttons();
 /**
  * @brief Handler for timer events.
  */
-static void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
+void TIM6_DAC_IRQHandler()
 {
-
-    switch (event_type)
-    {
-        case NRF_TIMER_EVENT_COMPARE0:
+			TIM6->SR &= ~ TIM_SR_UIF;
+			/*if (SPI1->SR & SPI_SR_TXE){
+				GPIOA->BRR = 0x10;
+				SPI1->DR = 0xff;
+			}
+			while(!(SPI1->SR & SPI_SR_TXE))
+				;;
+			GPIOA->BSRR = 0x10;
+			*/
             systick++;
-            check_buttons();
-            break;
-
-        default:
-            //Do nothing.
-            break;
-    }
+            //check_buttons();
+            return;
 }
 
 void hal_timebase_init(void)
 {
-    uint32_t time_ms = 1; //Time (in miliseconds) between consecutive compare events.
+    /*uint32_t time_ms = 1; //Time (in miliseconds) between consecutive compare events.
     uint32_t time_ticks;
     uint32_t err_code = NRF_SUCCESS;
 
@@ -77,7 +75,13 @@ void hal_timebase_init(void)
     nrf_drv_timer_extended_compare(
          &TIMER_LED, NRF_TIMER_CC_CHANNEL0, time_ticks, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
 
-    nrf_drv_timer_enable(&TIMER_LED);
+    nrf_drv_timer_enable(&TIMER_LED);*/
+	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+	TIM6->PSC = 47;
+	TIM6->ARR = 999;
+	TIM6->DIER |= TIM_DIER_UIE;
+	TIM6->CR1 |= TIM_CR1_CEN;
+	NVIC->ISER[0] = (1 << 17);
 }
 
 void hal_timebase_busy_wait(uint32_t delay)
@@ -101,7 +105,7 @@ uint32_t hal_timebase_get_tick(void)
 
 static void check_buttons()
 {
-    if (bsp_board_button_state_get(BMLITE_BUTTON)) {
+    /*if (bsp_board_button_state_get(BMLITE_BUTTON)) {
         if (btn_pressed == 0) {
             btn_press_start = systick;
             btn_pressed = 1;
@@ -115,7 +119,7 @@ static void check_buttons()
             }
             btn_pressed = 0;
         }
-    }
+    }*/
 }
 
 uint32_t hal_get_button_press_time()

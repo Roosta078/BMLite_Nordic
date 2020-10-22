@@ -22,82 +22,93 @@
  * @brief   SPI functions
  */
 
-#include "nrf_drv_spi.h"
-#include "boards.h"
-#include "nrf_gpio.h"
-#include "nrf_gpiote.h"
-#include "nrf_drv_gpiote.h"
 
 #include "bmlite_hal.h"
 #include "fpc_bep_types.h"
+#include "stm32f0xx.h"
+#include "stm32f0_discovery.h"
 
 #define SPI_INSTANCE  0 /**< SPI instance index. */
 
-#define BMLITE_CS_PIN   ARDUINO_8_PIN
+/*#define BMLITE_CS_PIN   ARDUINO_8_PIN
 #define BMLITE_MISO_PIN ARDUINO_12_PIN
 #define BMLITE_MOSI_PIN ARDUINO_11_PIN
-#define BMLITE_CLK_PIN  ARDUINO_13_PIN
+#define BMLITE_CLK_PIN  ARDUINO_13_PIN*/
 
-static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
+//static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
 static volatile bool spi_xfer_done;  /**< Flag used to indicate that SPI instance completed the transfer. */
 static uint8_t       *m_tx_buf;
 static uint8_t       *m_rx_buf;
 
-nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
+//nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
 
 /**
  * @brief SPI user event handler.
  * @param event
  */
-static void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
+/*static void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
                        void *                    p_context)
 {
     if( p_event->type == NRF_DRV_SPI_EVENT_DONE) {
 	    spi_xfer_done = true;
     }
-}
+}*/
 
-static void spi_write_read(uint8_t *write, uint8_t *read, size_t size, bool leave_cs_asserted)
+/*static void spi_write_read(uint8_t *write, uint8_t *read, size_t size, bool leave_cs_asserted)
 {
 
 	spi_xfer_done = false;
 	m_tx_buf =  write;
 	m_rx_buf = read;
 
-	nrf_drv_gpiote_out_clear(BMLITE_CS_PIN);
+	//nrf_drv_gpiote_out_clear(BMLITE_CS_PIN);
 
-	nrf_drv_spi_transfer(&spi, m_tx_buf, size, m_rx_buf, size);
 
-	while (!spi_xfer_done)
-	{
-		__WFE();
-	}
 
 	if(!leave_cs_asserted)
 		nrf_drv_gpiote_out_set(BMLITE_CS_PIN);
 
+}*/
+
+int get_TXE(){
+	return (SPI1->SR & SPI_SR_TXE);
+}
+
+int get_RXNE(){
+	int temp = SPI1->SR & SPI_SR_RXNE;
+	return (SPI1->SR & SPI_SR_RXNE);
 }
 
 fpc_bep_result_t hal_bmlite_spi_write_read(uint8_t *write, uint8_t *read, size_t size,
         bool leave_cs_asserted)
 {
 
-	uint8_t num_of_rounds = size/255, i;
+	uint8_t num_of_rounds = size/8, i;
 	uint8_t *p_write = write, *p_read = read;
+	volatile uint16_t data;
 
-	for(i=0; i<num_of_rounds; i++){
-		spi_write_read(p_write, p_read, 255, true);
+	for(; p_write < size + write; p_write+=2){
+		while(!get_TXE())
+			;;
+		/*spi_write_read(p_write, p_read, 255, true);
 		p_write += 255;
 		p_read += 255;
-		size -=255;
-	}
 
-	spi_write_read(p_write, p_read, size, leave_cs_asserted);
+		size -=255;*/
+		SPI1->DR = *(uint16_t *)p_write;
+		if (get_RXNE()){
+			data = SPI1->DR;
+			*p_read = *(uint8_t*) &data;
+			p_read++;
+			*p_read = *(uint8_t*) (&data + 1);
+		}
+
+	}
 
 	return FPC_BEP_RESULT_OK;
 }
 
-void nordic_bmlite_spi_init(uint32_t speed_hz)
+/*void nordic_bmlite_spi_init(uint32_t speed_hz)
 {
     //spi_config.ss_pin   = BMLITE_CS_PIN;
 	spi_config.miso_pin = BMLITE_MISO_PIN;
@@ -108,5 +119,5 @@ void nordic_bmlite_spi_init(uint32_t speed_hz)
 
     nrf_drv_gpiote_out_config_t out_config = GPIOTE_CONFIG_OUT_SIMPLE(true);
     nrf_drv_gpiote_out_init(BMLITE_CS_PIN, &out_config);
-}
+}*/
 
