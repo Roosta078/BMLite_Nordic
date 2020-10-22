@@ -13,21 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modified by Andrey Perminov <andrey.ppp@gmail.com> 
+ * Modified by Andrey Perminov <andrey.ppp@gmail.com>
  * for running on microcontrollers
- */
-
-
-/**
- * @file    main.c
- * @brief   Main file for FPC BM-Lite Communication example.
+ *
+ * Modified by Tommy Agnello <tagnello@purdue.edu>
+ * for running on STM32F0 HW
  */
 
 #include <unistd.h>
 #include <string.h>
-
-#include "bmlite_if.h"
+#include "stm32f0xx.h"
+#include "stm32f0_discovery.h"
 #include "hcp_tiny.h"
+#include "bmlite_if.h"
 #include "platform.h"
 #include "bmlite_hal.h"
 
@@ -45,86 +43,48 @@ static HCP_comm_t hcp_chain = {
     .phy_rx_timeout = 2000,
 };
 
-void bmlite_on_error(bmlite_error_t error, int32_t value)
+int main(void)
 {
-    if(value != FPC_BEP_RESULT_TIMEOUT) {
-        hal_set_leds(BMLITE_LED_STATUS_ERROR, false);
-    } else {
-        // Timeout - not really an error here
-        hal_set_leds(BMLITE_LED_STATUS_ERROR, true);
-    }
-}
+	platform_init(NULL);
+	GPIOA->BSRR = 0x10;
+	char version[100];
+	uint16_t template_id;
+	uint32_t current_id = 0;
+	bool match;
+	/*while (1){
+		if (SPI1->SR & SPI_SR_TXE)
+		SPI1->DR = 0x50;
+		//asm("wfi");
+	}
+	SPI1->DR = 0x55;*/
+	// These two lines for debug purpose only
+	memset(version, 0, 100);
+	fpc_bep_result_t res = bep_version(&hcp_chain, version, 99);
 
-// void bmlite_on_start_capture();
-// void bmlite_on_finish_capture();
+	while (1)
+	        {
+	            uint32_t btn_time = hal_get_button_press_time();
+	            //hal_set_leds(BMLITE_LED_STATUS_READY,0);
+	            if (btn_time < 200) {
+	                // nothing happened
+	            } else if (btn_time < 5000) {
+	                // Enroll
+	                res = bep_enroll_finger(&hcp_chain);
+	                res = bep_template_save(&hcp_chain, current_id++);
+	            } else {
+	                // Erase All templates
+	                //hal_set_leds(BMLITE_LED_STATUS_DELETE_TEMPLATES, true);
+	                res = bep_template_remove_all(&hcp_chain);
+	                current_id = 0;
+	            }
+	            res = bep_identify_finger(&hcp_chain, 0, &template_id, &match);
+	            if (res == FPC_BEP_RESULT_TIMEOUT) {
+	                platform_bmlite_reset();
+	            } else if (res != FPC_BEP_RESULT_OK) {
+	                continue;
+	            }
+	            //hal_set_leds(BMLITE_LED_STATUS_MATCH, match);
+	            res = sensor_wait_finger_not_present(&hcp_chain, 0);
 
-void bmlite_on_start_enroll()
-{
-    hal_set_leds(BMLITE_LED_STATUS_ENROLL, true);
-}
-
-void bmlite_on_finish_enroll()
-{
-    hal_set_leds(BMLITE_LED_STATUS_ENROLL, false);
-}
-
-void bmlite_on_start_enrollcapture()
-{
-    hal_set_leds(BMLITE_LED_STATUS_WAITTOUCH, true);
-}
-
-void bmlite_on_finish_enrollcapture()
-{
-    hal_set_leds(BMLITE_LED_STATUS_READY, false);
-}
-
-void bmlite_on_identify_start()
-{
-    hal_set_leds(BMLITE_LED_STATUS_READY, true);
-}
-
-// void bmlite_on_identify_finish();
-
-
-int main (int argc, char **argv)
-{
-    platform_init(NULL);
-
-    {
-        char version[100];
-        uint16_t template_id;
-        uint32_t current_id = 0;
-        bool match;
-
-        // These two lines for debug purpose only 
-        memset(version, 0, 100);
-        fpc_bep_result_t res = bep_version(&hcp_chain, version, 99);
-
-        while (1)
-        {
-            uint32_t btn_time = hal_get_button_press_time();
-            hal_set_leds(BMLITE_LED_STATUS_READY,0);
-            if (btn_time < 200) {
-                // nothing hapened
-            } else if (btn_time < 5000) {
-                // Enroll
-                res = bep_enroll_finger(&hcp_chain);
-                res = bep_template_save(&hcp_chain, current_id++);
-            } else {
-                // Erase All templates
-                hal_set_leds(BMLITE_LED_STATUS_DELETE_TEMPLATES, true);
-                res = bep_template_remove_all(&hcp_chain);
-                current_id = 0;
-            }
-            res = bep_identify_finger(&hcp_chain, 0, &template_id, &match);
-            if (res == FPC_BEP_RESULT_TIMEOUT) {
-                platform_bmlite_reset();
-            } else if (res != FPC_BEP_RESULT_OK) {
-                continue;
-            }
-            hal_set_leds(BMLITE_LED_STATUS_MATCH, match);
-            res = sensor_wait_finger_not_present(&hcp_chain, 0);
-
-        }
-    }
+	        }
 }
